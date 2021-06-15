@@ -130,6 +130,17 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
+      # Figure out the full absolute path of the product we just built
+      # including the remote server and configure the integration tests
+      # to run with these builds instead of running out of sources.
+      set -e
+      APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      SETUID_BINARY=$APP_ROOT/chrome-sandbox
+      sudo chown root $SETUID_BINARY
+      sudo chmod 4755 $SETUID_BINARY
+    displayName: Change setuid helper binary permission
+
+  - script: |
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
@@ -181,7 +192,7 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -190,7 +201,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -198,7 +209,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --web --headless --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
