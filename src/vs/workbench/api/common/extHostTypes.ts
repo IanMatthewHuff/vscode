@@ -3579,6 +3579,10 @@ export class NotebookCellStatusBarItem {
 		public text: string,
 		public alignment: NotebookCellStatusBarAlignment) { }
 }
+export class NotebookStatusBarItem {
+	constructor(
+		public text: string) { }
+}
 
 
 export enum NotebookControllerAffinity {

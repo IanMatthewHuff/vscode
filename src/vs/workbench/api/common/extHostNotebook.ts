@@ -219,6 +219,28 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
+	registerNotebookStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookStatusBarItemProvider) {
+
+		// IANHU
+		// const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
+		// const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
+
+		// this._notebookStatusBarItemProviders.set(handle, provider);
+		// this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
+
+		// let subscription: vscode.Disposable | undefined;
+		// if (eventHandle !== undefined) {
+		// subscription = provider.onDidChangeCellStatusBarItems!(_ => this._notebookProxy.$emitCellStatusBarEvent(eventHandle));
+		// }
+
+		// return new extHostTypes.Disposable(() => {
+		// this._notebookStatusBarItemProviders.delete(handle);
+		// this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
+		// subscription?.dispose();
+		// });
+		return new extHostTypes.Disposable(() => { });
+	}
+
 	async createNotebookDocument(options: { viewType: string; content?: vscode.NotebookData }): Promise<URI> {
 		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
 			viewType: options.viewType,
