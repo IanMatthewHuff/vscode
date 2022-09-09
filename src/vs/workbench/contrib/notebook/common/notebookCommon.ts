@@ -885,6 +885,12 @@ export interface INotebookCellStatusBarItemProvider {
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
+export interface INotebookStatusBarItemProvider {
+	viewType: string;
+	onDidChangeStatusBarItems?: Event<void>;
+	provideStatusBarItems(uri: URI, token: CancellationToken): Promise<INotebookStatusBarItemList | undefined>;
+}
+
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
@@ -906,6 +912,23 @@ export interface INotebookCellStatusBarItem {
 
 export interface INotebookCellStatusBarItemList {
 	items: INotebookCellStatusBarItem[];
+	dispose?(): void;
+}
+
+export interface INotebookStatusBarItem {
+	readonly text: string;
+	readonly priority?: number;
+	readonly color?: string | ThemeColor;
+	readonly backgroundColor?: string | ThemeColor;
+	readonly tooltip?: string;
+	readonly command?: string | Command;
+	readonly accessibilityInformation?: IAccessibilityInformation;
+	readonly opacity?: string;
+	readonly onlyShowWhenActive?: boolean;
+}
+
+export interface INotebookStatusBarItemList {
+	items: INotebookStatusBarItem[];
 	dispose?(): void;
 }
 

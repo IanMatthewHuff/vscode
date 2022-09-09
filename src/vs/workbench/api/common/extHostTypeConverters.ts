@@ -1691,11 +1691,24 @@ export namespace NotebookExclusiveDocumentPattern {
 	}
 }
 
-export namespace NotebookStatusBarItem {
+export namespace NotebookCellStatusBarItem {
 	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
 		return {
 			alignment: item.alignment === types.NotebookCellStatusBarAlignment.Left ? notebooks.CellStatusbarAlignment.Left : notebooks.CellStatusbarAlignment.Right,
+			command: commandsConverter.toInternal(command, disposables), // TODO@roblou
+			text: item.text,
+			tooltip: item.tooltip,
+			accessibilityInformation: item.accessibilityInformation,
+			priority: item.priority
+		};
+	}
+}
+
+export namespace NotebookStatusBarItem {
+	export function from(item: vscode.NotebookStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookStatusBarItem {
+		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
+		return {
 			command: commandsConverter.toInternal(command, disposables), // TODO@roblou
 			text: item.text,
 			tooltip: item.tooltip,

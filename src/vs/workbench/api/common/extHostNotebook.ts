@@ -16,7 +16,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookStatusBarListDto, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -36,6 +36,7 @@ type NotebookContentProviderData = {
 };
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
+	private static _notebookCellStatusBarItemProviderHandlePool: number = 0;
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
 
 	private readonly _notebookProxy: MainThreadNotebookShape;
@@ -43,7 +44,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookEditorsProxy: MainThreadNotebookEditorsShape;
 
 	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
-	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
+	private readonly _notebookCellStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
+	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookStatusBarItemProvider>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
@@ -68,7 +70,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
-	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
+	private _cellStatusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
+	private _statusBarCache = new Cache<IDisposable>('NotebookStatusBarCache');
 
 	constructor(
 		mainContext: IMainContext,
@@ -201,10 +204,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) {
 
-		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
-		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
+		const handle = ExtHostNotebookController._notebookCellStatusBarItemProviderHandlePool++;
+		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookCellStatusBarItemProviderHandlePool++ : undefined;
 
-		this._notebookStatusBarItemProviders.set(handle, provider);
+		this._notebookCellStatusBarItemProviders.set(handle, provider);
 		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
 
 		let subscription: vscode.Disposable | undefined;
@@ -213,7 +216,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		return new extHostTypes.Disposable(() => {
-			this._notebookStatusBarItemProviders.delete(handle);
+			this._notebookCellStatusBarItemProviders.delete(handle);
 			this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
 			subscription?.dispose();
 		});
@@ -221,24 +224,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	registerNotebookStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookStatusBarItemProvider) {
 
-		// IANHU
-		// const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
-		// const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
+		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
+		const eventHandle = typeof provider.onDidChangeStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
-		// this._notebookStatusBarItemProviders.set(handle, provider);
-		// this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
+		this._notebookStatusBarItemProviders.set(handle, provider);
+		this._notebookProxy.$registerNotebookStatusBarItemProvider(handle, eventHandle, notebookType);
 
-		// let subscription: vscode.Disposable | undefined;
-		// if (eventHandle !== undefined) {
-		// subscription = provider.onDidChangeCellStatusBarItems!(_ => this._notebookProxy.$emitCellStatusBarEvent(eventHandle));
-		// }
+		let subscription: vscode.Disposable | undefined;
+		if (eventHandle !== undefined) {
+			subscription = provider.onDidChangeStatusBarItems!(_ => this._notebookProxy.$emitStatusBarEvent(eventHandle));
+		}
 
-		// return new extHostTypes.Disposable(() => {
-		// this._notebookStatusBarItemProviders.delete(handle);
-		// this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
-		// subscription?.dispose();
-		// });
-		return new extHostTypes.Disposable(() => { });
+		return new extHostTypes.Disposable(() => {
+			this._notebookStatusBarItemProviders.delete(handle);
+			this._notebookProxy.$unregisterNotebookStatusBarItemProvider(handle, eventHandle);
+			subscription?.dispose();
+		});
 	}
 
 	async createNotebookDocument(options: { viewType: string; content?: vscode.NotebookData }): Promise<URI> {
@@ -295,7 +296,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	async $provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined> {
-		const provider = this._notebookStatusBarItemProviders.get(handle);
+		const provider = this._notebookCellStatusBarItemProviders.get(handle);
 		const revivedUri = URI.revive(uri);
 		const document = this._documents.get(revivedUri);
 		if (!document || !provider) {
@@ -313,6 +314,33 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		const disposables = new DisposableStore();
+		const cacheId = this._cellStatusBarCache.add([disposables]);
+		const resultArr = Array.isArray(result) ? result : [result];
+		const items = resultArr.map(item => typeConverters.NotebookCellStatusBarItem.from(item, this._commandsConverter, disposables));
+		return {
+			cacheId,
+			items
+		};
+	}
+
+	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._cellStatusBarCache.delete(cacheId);
+	}
+
+	async $provideNotebookStatusBarItems(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookStatusBarListDto | undefined> {
+		const provider = this._notebookStatusBarItemProviders.get(handle);
+		const revivedUri = URI.revive(uri);
+		const document = this._documents.get(revivedUri);
+		if (!document || !provider) {
+			return;
+		}
+
+		const result = await provider.provideStatusBarItems(document.apiNotebook, token);
+		if (!result) {
+			return undefined;
+		}
+
+		const disposables = new DisposableStore();
 		const cacheId = this._statusBarCache.add([disposables]);
 		const resultArr = Array.isArray(result) ? result : [result];
 		const items = resultArr.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables));
@@ -322,7 +350,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		};
 	}
 
-	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+	$releaseNotebookStatusBarItems(cacheId: number): void {
 		this._statusBarCache.delete(cacheId);
 	}
 

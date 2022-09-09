@@ -960,6 +960,13 @@ export interface INotebookCellStatusBarListDto {
 	cacheId: number;
 }
 
+export type INotebookStatusBarEntryDto = Dto<notebookCommon.INotebookStatusBarItem>;
+
+export interface INotebookStatusBarListDto {
+	items: INotebookStatusBarEntryDto[];
+	cacheId: number;
+}
+
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
 	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: notebookCommon.TransientCellMetadata; transientDocumentMetadata: notebookCommon.TransientDocumentMetadata }): Promise<void>;
@@ -971,6 +978,10 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void>;
 	$unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void>;
 	$emitCellStatusBarEvent(eventHandle: number): void;
+
+	$registerNotebookStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void>;
+	$unregisterNotebookStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void>;
+	$emitStatusBarEvent(eventHandle: number): void;
 }
 
 export interface MainThreadNotebookEditorsShape extends IDisposable {
@@ -2054,6 +2065,9 @@ export interface NotebookCellDto {
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
+
+	$provideNotebookStatusBarItems(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookStatusBarListDto | undefined>;
+	$releaseNotebookStatusBarItems(id: number): void;
 
 	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
