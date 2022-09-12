@@ -12,7 +12,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export class ContributedStatusBarItemController extends Disposable implements INotebookEditorContribution {
+export class ContributedCellStatusBarItemController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar.contributed';
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
@@ -135,4 +135,4 @@ class CellStatusBarHelper extends Disposable {
 	}
 }
 
-registerNotebookContribution(ContributedStatusBarItemController.id, ContributedStatusBarItemController);
+registerNotebookContribution(ContributedCellStatusBarItemController.id, ContributedCellStatusBarItemController);
