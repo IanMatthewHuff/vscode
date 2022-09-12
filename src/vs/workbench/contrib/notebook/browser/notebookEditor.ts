@@ -29,7 +29,7 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controll
 import { INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
+import { NotebookKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -124,7 +124,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
-			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+			return this._instantiationService.createInstance(NotebookKernelActionViewItem, action, this);
 		}
 		return undefined;
 	}

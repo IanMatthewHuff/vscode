@@ -22,7 +22,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
+import { NotebookKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -64,7 +64,7 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 	actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
@@ -121,7 +121,7 @@ class FixedLabellessStrategy extends FixedLabelStrategy {
 	override actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
@@ -139,7 +139,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 	actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
@@ -354,7 +354,7 @@ export class NotebookEditorToolbar extends Disposable {
 		const actionProvider = (action: IAction) => {
 			if (action.id === SELECT_KERNEL_ID) {
 				// 	// this is being disposed by the consumer
-				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+				return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 			}
 
 			if (this._renderLabel !== RenderLabel.Never) {
