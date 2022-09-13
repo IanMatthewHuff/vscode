@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -18,9 +18,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_ID, NotebookSetting, INotebookStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
@@ -28,6 +28,17 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
+import { isThemeColor } from 'vs/editor/common/editorCommon';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+
+const $ = DOM.$;
 
 interface IActionModel {
 	action: IAction;
@@ -523,13 +534,16 @@ export class NotebookEditorToolbar extends Disposable {
 
 		const statusItems = this.notebookEditor._getViewModel().getStatusBarItems();
 
+
 		// IANHU: Not right, should actually swap in the new elements
 		this._notebookTopRightStatusbarContainer.replaceChildren();
 		statusItems.forEach(statusItem => {
-			const newDiv = document.createElement('div');
-			newDiv.classList.add('notebook-statusbar-item');
-			newDiv.innerText = statusItem.text;
-			DOM.append(this._notebookTopRightStatusbarContainer, newDiv);
+			// IANHU: Second param is maxItemWidth, just hardcoding for now
+			const statusItemElement = this.instantiationService.createInstance(StatusBarItem, statusItem, 200);
+			// const newDiv = document.createElement('div');
+			// newDiv.classList.add('notebook-statusbar-item');
+			// newDiv.innerText = statusItem.text;
+			DOM.append(this._notebookTopRightStatusbarContainer, statusItemElement.container);
 		});
 	}
 
@@ -662,3 +676,103 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 });
+
+// IANHU: This should move out to a new file, as well as a container here
+class StatusBarItem extends Disposable {
+	readonly container = $('.notebook-statusbar-item');
+
+	set maxWidth(v: number) {
+		this.container.style.maxWidth = v + 'px';
+	}
+
+	private _currentItem!: INotebookStatusBarItem;
+	private _itemDisposables = this._register(new DisposableStore());
+
+	constructor(
+		itemModel: INotebookStatusBarItem,
+		maxWidth: number | undefined,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) {
+		super();
+
+		this.updateItem(itemModel, maxWidth);
+	}
+
+	updateItem(item: INotebookStatusBarItem, maxWidth: number | undefined) {
+		this._itemDisposables.clear();
+
+		if (!this._currentItem || this._currentItem.text !== item.text) {
+			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
+		}
+
+		const resolveColor = (color: ThemeColor | string) => {
+			return isThemeColor(color) ?
+				(this._themeService.getColorTheme().getColor(color.id)?.toString() || '') :
+				color;
+		};
+
+		this.container.style.color = item.color ? resolveColor(item.color) : '';
+		this.container.style.backgroundColor = item.backgroundColor ? resolveColor(item.backgroundColor) : '';
+		this.container.style.opacity = item.opacity ? item.opacity : '';
+
+		this.container.classList.toggle('notebook-statusbar-item-show-when-active', !!item.onlyShowWhenActive);
+
+		if (typeof maxWidth === 'number') {
+			this.maxWidth = maxWidth;
+		}
+
+		let ariaLabel: string;
+		let role: string | undefined;
+		if (item.accessibilityInformation) {
+			ariaLabel = item.accessibilityInformation.label;
+			role = item.accessibilityInformation.role;
+		} else {
+			ariaLabel = item.text ? stripIcons(item.text).trim() : '';
+		}
+
+		this.container.setAttribute('aria-label', ariaLabel);
+		this.container.setAttribute('role', role || '');
+		this.container.title = item.tooltip ?? '';
+
+		this.container.classList.toggle('notebook-statusbar-item-has-command', !!item.command);
+		if (item.command) {
+			this.container.tabIndex = 0;
+
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
+				this.executeCommand();
+			}));
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+					this.executeCommand();
+				}
+			}));
+		} else {
+			this.container.removeAttribute('tabIndex');
+		}
+
+		this._currentItem = item;
+	}
+
+	private async executeCommand(): Promise<void> {
+		const command = this._currentItem.command;
+		if (!command) {
+			return;
+		}
+
+		const id = typeof command === 'string' ? command : command.id;
+		const args = typeof command === 'string' ? [] : command.arguments ?? [];
+
+		// IANHU: Removed a context unshift here
+
+		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'notebook status bar' });
+		try {
+			await this._commandService.executeCommand(id, ...args);
+		} catch (error) {
+			this._notificationService.error(toErrorMessage(error));
+		}
+	}
+}
