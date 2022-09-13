@@ -266,6 +266,7 @@ export class NotebookEditorToolbar extends Disposable {
 	private _notebookGlobalActionsMenu!: IMenu;
 	private _notebookLeftToolbar!: ToolBar;
 	private _primaryActions: IActionModel[];
+	private _notebookTopRightStatusbarContainer!: HTMLElement;
 	get primaryActions(): IActionModel[] {
 		return this._primaryActions;
 	}
@@ -333,6 +334,12 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._leftToolbarScrollable);
 
 		DOM.append(this.domNode, this._leftToolbarScrollable.getDomNode());
+
+		// IANHU
+		this._notebookTopRightStatusbarContainer = document.createElement('div');
+		this._notebookTopRightStatusbarContainer.classList.add('notebook-statusbar-container');
+		DOM.append(this.domNode, this._notebookTopRightStatusbarContainer);
+
 		this._notebookTopRightToolbarContainer = document.createElement('div');
 		this._notebookTopRightToolbarContainer.classList.add('notebook-toolbar-right');
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);

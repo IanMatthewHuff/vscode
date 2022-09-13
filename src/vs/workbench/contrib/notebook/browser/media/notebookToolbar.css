@@ -84,3 +84,8 @@
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .codicon-notebook-state-error {
 	color: var(--notebook-cell-status-icon-error);
 }
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-statusbar-container {
+	width: 100px;
+	background-color: blue;
+}

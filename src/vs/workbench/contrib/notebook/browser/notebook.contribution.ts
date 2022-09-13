@@ -82,6 +82,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedCellStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
