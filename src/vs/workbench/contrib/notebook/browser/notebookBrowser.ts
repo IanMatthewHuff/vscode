@@ -399,6 +399,7 @@ export interface INotebookViewModel {
 	replaceAll(matches: CellFindMatch[], texts: string[]): Promise<void>;
 	setStatusBarItems(items: INotebookStatusBarItem[]): void;
 	getStatusBarItems(): INotebookStatusBarItem[];
+	onDidChangeStatusBarItems: Event<void>;
 }
 //#endregion
 

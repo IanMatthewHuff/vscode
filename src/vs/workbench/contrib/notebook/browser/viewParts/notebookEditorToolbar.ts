@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -287,6 +287,7 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _dimension: DOM.Dimension | null = null;
+	private readonly _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -312,9 +313,22 @@ export class NotebookEditorToolbar extends Disposable {
 				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
 				if (notebookEditor === this.notebookEditor) {
 					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
+					this._showNotebookActionsInEditorToolbar();
 					return;
 				}
+			}
+		}));
+
+		// When we get a new view model register to show status items
+		this._register(this.notebookEditor.onDidChangeModel(() => {
+			this._modelDisposables.clear();
+
+			if (this.notebookEditor.hasModel()) {
+				this._modelDisposables.add(this.notebookEditor._getViewModel().onDidChangeStatusBarItems(() => {
+					this._statusBarItemsChanged();
+				}));
+
+				this._statusBarItemsChanged();
 			}
 		}));
 
@@ -394,17 +408,17 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookRightToolbar);
 		this._notebookRightToolbar.context = context;
 
-		this._showNotebookActionsinEditorToolbar();
+		this._showNotebookActionsInEditorToolbar();
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
 
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				deferredUpdate = () => this._showNotebookActionsinEditorToolbar();
+				deferredUpdate = () => this._showNotebookActionsInEditorToolbar();
 				return;
 			}
 
-			this._showNotebookActionsinEditorToolbar();
+			this._showNotebookActionsInEditorToolbar();
 		}));
 
 		this._register(this._notebookLeftToolbar.onDidChangeDropdownVisibility(visible => {
@@ -421,7 +435,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this.notebookOptions.onDidChangeOptions(e => {
 			if (e.globalToolbar !== undefined) {
 				this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-				this._showNotebookActionsinEditorToolbar();
+				this._showNotebookActionsInEditorToolbar();
 			}
 		}));
 
@@ -439,7 +453,7 @@ export class NotebookEditorToolbar extends Disposable {
 				});
 				this._register(this._notebookLeftToolbar);
 				this._notebookLeftToolbar.context = context;
-				this._showNotebookActionsinEditorToolbar();
+				this._showNotebookActionsInEditorToolbar();
 				return;
 			}
 		}));
@@ -451,7 +465,7 @@ export class NotebookEditorToolbar extends Disposable {
 				}
 				if (this._useGlobalToolbar !== treatment) {
 					this._useGlobalToolbar = treatment;
-					this._showNotebookActionsinEditorToolbar();
+					this._showNotebookActionsInEditorToolbar();
 				}
 			});
 		}
@@ -486,7 +500,7 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 	}
 
-	private _showNotebookActionsinEditorToolbar() {
+	private _showNotebookActionsInEditorToolbar() {
 		// when there is no view model, just ignore.
 		if (!this.notebookEditor.hasModel()) {
 			return;
@@ -499,6 +513,24 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 
 		this._onDidChangeState.fire();
+	}
+
+	private _statusBarItemsChanged() {
+		// when there is no view model, just ignore.
+		if (!this.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const statusItems = this.notebookEditor._getViewModel().getStatusBarItems();
+
+		// IANHU: Not right, should actually swap in the new elements
+		this._notebookTopRightStatusbarContainer.replaceChildren();
+		statusItems.forEach(statusItem => {
+			const newDiv = document.createElement('div');
+			newDiv.classList.add('notebook-statusbar-item');
+			newDiv.innerText = statusItem.text;
+			DOM.append(this._notebookTopRightStatusbarContainer, newDiv);
+		});
 	}
 
 	private _setNotebookActions() {

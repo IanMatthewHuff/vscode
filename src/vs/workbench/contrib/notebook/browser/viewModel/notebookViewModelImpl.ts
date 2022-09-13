@@ -186,6 +186,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _decorationIdToCellMap = new Map<string, number>();
 	private _statusBarItemIdToCellMap = new Map<string, number>();
 
+	private readonly _onDidChangeStatusBarItems = this._register(new Emitter<void>());
+	readonly onDidChangeStatusBarItems: Event<void> = this._onDidChangeStatusBarItems.event;
+
 	constructor(
 		public viewType: string,
 		private _notebook: NotebookTextModel,
@@ -751,6 +754,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	// IANHU: Too simplistic? Not using the delta here, just replacing
 	setStatusBarItems(items: INotebookStatusBarItem[]) {
 		this._statusBarItems = items;
+		this._onDidChangeStatusBarItems.fire();
 	}
 
 	getStatusBarItems(): INotebookStatusBarItem[] {
