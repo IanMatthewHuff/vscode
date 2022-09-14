@@ -414,6 +414,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _editorDisposables = this._register(new DisposableStore());
 	private readonly _kernelInfoElement = this._register(new DisposableStore());
+	private readonly _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -445,17 +446,30 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			const notebook = activeEditor.textModel;
 			if (notebook) {
 				this._showKernelStatus(notebook);
+				this._showStatusBarItems(activeEditor);
 			} else {
 				this._kernelInfoElement.clear();
 			}
 		};
 
+		const modelChange = () => {
+			this._modelDisposables.dispose();
+			if (activeEditor.hasModel()) {
+				this._modelDisposables.add(activeEditor._getViewModel().onDidChangeStatusBarItems(updateStatus));
+			}
+			updateStatus();
+		};
+
 		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
-		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
+		//this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
+		this._editorDisposables.add(activeEditor.onDidChangeModel(modelChange));
 		this._editorDisposables.add(activeEditor.notebookOptions.onDidChangeOptions(updateStatus));
 		updateStatus();
+	}
+
+	private _showStatusBarItems(notebookEditor: INotebookEditor) {
 	}
 
 	private _showKernelStatus(notebook: NotebookTextModel) {
