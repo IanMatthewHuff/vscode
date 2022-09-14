@@ -28,7 +28,7 @@ export function formatCellDuration(duration: number): string {
 	}
 }
 
-export class NotebookStatusBarController extends Disposable {
+export class NotebookExecutionStatusBarController extends Disposable {
 	private readonly _visibleCells = new Map<number, IDisposable>();
 	private readonly _observer: NotebookVisibleCellObserver;
 
@@ -80,7 +80,7 @@ export class ExecutionStateCellStatusBarContrib extends Disposable implements IN
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(ExecutionStateCellStatusBarItem, vm, cell)));
+		this._register(new NotebookExecutionStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(ExecutionStateCellStatusBarItem, vm, cell)));
 	}
 }
 registerNotebookContribution(ExecutionStateCellStatusBarContrib.id, ExecutionStateCellStatusBarContrib);
@@ -203,7 +203,7 @@ export class TimerCellStatusBarContrib extends Disposable implements INotebookEd
 		notebookEditor: INotebookEditor,
 		@IInstantiationService instantiationService: IInstantiationService) {
 		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(TimerCellStatusBarItem, vm, cell)));
+		this._register(new NotebookExecutionStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(TimerCellStatusBarItem, vm, cell)));
 	}
 }
 registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);

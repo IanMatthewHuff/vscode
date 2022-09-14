@@ -11,7 +11,8 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookStatusBarService';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookStatusBarItemProvider, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
@@ -29,11 +30,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider; disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
+	private readonly _notebookStatusBarRegistrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
+		@INotebookStatusBarService private readonly _statusBarService: INotebookStatusBarService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -178,6 +181,54 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			if (entry) {
 				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
 				this._notebookCellStatusBarRegistrations.delete(handle);
+			}
+		};
+		unregisterThing(handle);
+		if (typeof eventHandle === 'number') {
+			unregisterThing(eventHandle);
+		}
+	}
+
+	$emitStatusBarEvent(eventHandle: number): void {
+		const emitter = this._notebookStatusBarRegistrations.get(eventHandle);
+		if (emitter instanceof Emitter) {
+			emitter.fire(undefined);
+		}
+	}
+
+	async $registerNotebookStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void> {
+		const that = this;
+		const provider: INotebookStatusBarItemProvider = {
+			async provideStatusBarItems(uri: URI, token: CancellationToken) {
+				const result = await that._proxy.$provideNotebookStatusBarItems(handle, uri, token);
+				return {
+					items: result?.items ?? [],
+					dispose() {
+						if (result) {
+							that._proxy.$releaseNotebookStatusBarItems(result.cacheId);
+						}
+					}
+				};
+			},
+			viewType
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._notebookStatusBarRegistrations.set(eventHandle, emitter);
+			provider.onDidChangeStatusBarItems = emitter.event;
+		}
+
+		const disposable = this._statusBarService.registerStatusBarItemProvider(provider);
+		this._notebookStatusBarRegistrations.set(handle, disposable);
+	}
+
+	async $unregisterNotebookStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void> {
+		const unregisterThing = (handle: number) => {
+			const entry = this._notebookStatusBarRegistrations.get(handle);
+			if (entry) {
+				this._notebookStatusBarRegistrations.get(handle)?.dispose();
+				this._notebookStatusBarRegistrations.delete(handle);
 			}
 		};
 		unregisterThing(handle);

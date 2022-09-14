@@ -14,7 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export class NotebooKernelActionViewItem extends ActionViewItem {
+export class NotebookKernelActionViewItem extends ActionViewItem {
 
 	private _kernelLabel?: HTMLAnchorElement;
 
@@ -99,7 +99,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		const selectedOrSuggested = info.selected ?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
-			this._action.label = this._generateKenrelLabel(selectedOrSuggested);
+			this._action.label = this._generateKernelLabel(selectedOrSuggested);
 			this._action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
 			if (!info.selected) {
 				// special UI for selected kernel?
@@ -111,7 +111,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		}
 	}
 
-	private _generateKenrelLabel(kernel: INotebookKernel) {
+	private _generateKernelLabel(kernel: INotebookKernel) {
 		return kernel.label;
 	}
 

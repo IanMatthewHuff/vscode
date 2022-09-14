@@ -6,9 +6,9 @@
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -18,16 +18,27 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_ID, NotebookSetting, INotebookStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
+import { NotebookKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
+import { isThemeColor } from 'vs/editor/common/editorCommon';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+
+const $ = DOM.$;
 
 interface IActionModel {
 	action: IAction;
@@ -64,7 +75,7 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 	actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
@@ -121,7 +132,7 @@ class FixedLabellessStrategy extends FixedLabelStrategy {
 	override actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
@@ -139,7 +150,7 @@ class DynamicLabelStrategy implements IActionLayoutStrategy {
 	actionProvider(action: IAction) {
 		if (action.id === SELECT_KERNEL_ID) {
 			// 	// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+			return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 		}
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
@@ -266,6 +277,7 @@ export class NotebookEditorToolbar extends Disposable {
 	private _notebookGlobalActionsMenu!: IMenu;
 	private _notebookLeftToolbar!: ToolBar;
 	private _primaryActions: IActionModel[];
+	private _notebookTopRightStatusbarContainer!: HTMLElement;
 	get primaryActions(): IActionModel[] {
 		return this._primaryActions;
 	}
@@ -286,6 +298,7 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _dimension: DOM.Dimension | null = null;
+	private readonly _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -311,9 +324,22 @@ export class NotebookEditorToolbar extends Disposable {
 				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
 				if (notebookEditor === this.notebookEditor) {
 					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
+					this._showNotebookActionsInEditorToolbar();
 					return;
 				}
+			}
+		}));
+
+		// When we get a new view model register to show status items
+		this._register(this.notebookEditor.onDidChangeModel(() => {
+			this._modelDisposables.clear();
+
+			if (this.notebookEditor.hasModel()) {
+				this._modelDisposables.add(this.notebookEditor._getViewModel().onDidChangeStatusBarItems(() => {
+					this._statusBarItemsChanged();
+				}));
+
+				this._statusBarItemsChanged();
 			}
 		}));
 
@@ -333,6 +359,12 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._leftToolbarScrollable);
 
 		DOM.append(this.domNode, this._leftToolbarScrollable.getDomNode());
+
+		// IANHU
+		this._notebookTopRightStatusbarContainer = document.createElement('div');
+		this._notebookTopRightStatusbarContainer.classList.add('notebook-statusbar-container');
+		DOM.append(this.domNode, this._notebookTopRightStatusbarContainer);
+
 		this._notebookTopRightToolbarContainer = document.createElement('div');
 		this._notebookTopRightToolbarContainer.classList.add('notebook-toolbar-right');
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
@@ -354,7 +386,7 @@ export class NotebookEditorToolbar extends Disposable {
 		const actionProvider = (action: IAction) => {
 			if (action.id === SELECT_KERNEL_ID) {
 				// 	// this is being disposed by the consumer
-				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+				return this.instantiationService.createInstance(NotebookKernelActionViewItem, action, this.notebookEditor);
 			}
 
 			if (this._renderLabel !== RenderLabel.Never) {
@@ -387,17 +419,17 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookRightToolbar);
 		this._notebookRightToolbar.context = context;
 
-		this._showNotebookActionsinEditorToolbar();
+		this._showNotebookActionsInEditorToolbar();
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
 
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				deferredUpdate = () => this._showNotebookActionsinEditorToolbar();
+				deferredUpdate = () => this._showNotebookActionsInEditorToolbar();
 				return;
 			}
 
-			this._showNotebookActionsinEditorToolbar();
+			this._showNotebookActionsInEditorToolbar();
 		}));
 
 		this._register(this._notebookLeftToolbar.onDidChangeDropdownVisibility(visible => {
@@ -414,7 +446,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this.notebookOptions.onDidChangeOptions(e => {
 			if (e.globalToolbar !== undefined) {
 				this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-				this._showNotebookActionsinEditorToolbar();
+				this._showNotebookActionsInEditorToolbar();
 			}
 		}));
 
@@ -432,7 +464,7 @@ export class NotebookEditorToolbar extends Disposable {
 				});
 				this._register(this._notebookLeftToolbar);
 				this._notebookLeftToolbar.context = context;
-				this._showNotebookActionsinEditorToolbar();
+				this._showNotebookActionsInEditorToolbar();
 				return;
 			}
 		}));
@@ -444,7 +476,7 @@ export class NotebookEditorToolbar extends Disposable {
 				}
 				if (this._useGlobalToolbar !== treatment) {
 					this._useGlobalToolbar = treatment;
-					this._showNotebookActionsinEditorToolbar();
+					this._showNotebookActionsInEditorToolbar();
 				}
 			});
 		}
@@ -479,7 +511,7 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 	}
 
-	private _showNotebookActionsinEditorToolbar() {
+	private _showNotebookActionsInEditorToolbar() {
 		// when there is no view model, just ignore.
 		if (!this.notebookEditor.hasModel()) {
 			return;
@@ -492,6 +524,27 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 
 		this._onDidChangeState.fire();
+	}
+
+	private _statusBarItemsChanged() {
+		// when there is no view model, just ignore.
+		if (!this.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const statusItems = this.notebookEditor._getViewModel().getStatusBarItems();
+
+
+		// IANHU: Not right, should actually swap in the new elements
+		this._notebookTopRightStatusbarContainer.replaceChildren();
+		statusItems.forEach(statusItem => {
+			// IANHU: Second param is maxItemWidth, just hardcoding for now
+			const statusItemElement = this.instantiationService.createInstance(StatusBarItem, statusItem, 200);
+			// const newDiv = document.createElement('div');
+			// newDiv.classList.add('notebook-statusbar-item');
+			// newDiv.innerText = statusItem.text;
+			DOM.append(this._notebookTopRightStatusbarContainer, statusItemElement.container);
+		});
 	}
 
 	private _setNotebookActions() {
@@ -623,3 +676,103 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 });
+
+// IANHU: This should move out to a new file, as well as a container here
+class StatusBarItem extends Disposable {
+	readonly container = $('.notebook-statusbar-item');
+
+	set maxWidth(v: number) {
+		this.container.style.maxWidth = v + 'px';
+	}
+
+	private _currentItem!: INotebookStatusBarItem;
+	private _itemDisposables = this._register(new DisposableStore());
+
+	constructor(
+		itemModel: INotebookStatusBarItem,
+		maxWidth: number | undefined,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
+	) {
+		super();
+
+		this.updateItem(itemModel, maxWidth);
+	}
+
+	updateItem(item: INotebookStatusBarItem, maxWidth: number | undefined) {
+		this._itemDisposables.clear();
+
+		if (!this._currentItem || this._currentItem.text !== item.text) {
+			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
+		}
+
+		const resolveColor = (color: ThemeColor | string) => {
+			return isThemeColor(color) ?
+				(this._themeService.getColorTheme().getColor(color.id)?.toString() || '') :
+				color;
+		};
+
+		this.container.style.color = item.color ? resolveColor(item.color) : '';
+		this.container.style.backgroundColor = item.backgroundColor ? resolveColor(item.backgroundColor) : '';
+		this.container.style.opacity = item.opacity ? item.opacity : '';
+
+		this.container.classList.toggle('notebook-statusbar-item-show-when-active', !!item.onlyShowWhenActive);
+
+		if (typeof maxWidth === 'number') {
+			this.maxWidth = maxWidth;
+		}
+
+		let ariaLabel: string;
+		let role: string | undefined;
+		if (item.accessibilityInformation) {
+			ariaLabel = item.accessibilityInformation.label;
+			role = item.accessibilityInformation.role;
+		} else {
+			ariaLabel = item.text ? stripIcons(item.text).trim() : '';
+		}
+
+		this.container.setAttribute('aria-label', ariaLabel);
+		this.container.setAttribute('role', role || '');
+		this.container.title = item.tooltip ?? '';
+
+		this.container.classList.toggle('notebook-statusbar-item-has-command', !!item.command);
+		if (item.command) {
+			this.container.tabIndex = 0;
+
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
+				this.executeCommand();
+			}));
+			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+					this.executeCommand();
+				}
+			}));
+		} else {
+			this.container.removeAttribute('tabIndex');
+		}
+
+		this._currentItem = item;
+	}
+
+	private async executeCommand(): Promise<void> {
+		const command = this._currentItem.command;
+		if (!command) {
+			return;
+		}
+
+		const id = typeof command === 'string' ? command : command.id;
+		const args = typeof command === 'string' ? [] : command.arguments ?? [];
+
+		// IANHU: Removed a context unshift here
+
+		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'notebook status bar' });
+		try {
+			await this._commandService.executeCommand(id, ...args);
+		} catch (error) {
+			this._notificationService.error(toErrorMessage(error));
+		}
+	}
+}

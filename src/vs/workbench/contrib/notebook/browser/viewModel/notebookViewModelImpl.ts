@@ -29,7 +29,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, INotebookSearchOptions, INotebookStatusBarItem, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
@@ -177,6 +177,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _foldingRanges: FoldingRegions | null = null;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
+	private _statusBarItems: INotebookStatusBarItem[] = [];
 
 	get focused() {
 		return this._focused;
@@ -184,6 +185,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _decorationIdToCellMap = new Map<string, number>();
 	private _statusBarItemIdToCellMap = new Map<string, number>();
+
+	private readonly _onDidChangeStatusBarItems = this._register(new Emitter<void>());
+	readonly onDidChangeStatusBarItems: Event<void> = this._onDidChangeStatusBarItems.event;
 
 	constructor(
 		public viewType: string,
@@ -745,6 +749,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		return result;
+	}
+
+	// IANHU: Too simplistic? Not using the delta here, just replacing
+	setStatusBarItems(items: INotebookStatusBarItem[]) {
+		this._statusBarItems = items;
+		this._onDidChangeStatusBarItems.fire();
+	}
+
+	getStatusBarItems(): INotebookStatusBarItem[] {
+		return this._statusBarItems;
 	}
 
 	nearestCodeCellIndex(index: number /* exclusive */) {

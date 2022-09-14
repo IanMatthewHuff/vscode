@@ -84,3 +84,27 @@
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .codicon-notebook-state-error {
 	color: var(--notebook-cell-status-icon-error);
 }
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-statusbar-container {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-statusbar-container .notebook-statusbar-item {
+	display: flex;
+	align-items: center;
+	white-space: pre;
+
+	height: 21px; /* Editor outline is -1px in, don't overlap */
+	margin: 0px 3px;
+	padding: 0px 3px;
+	overflow: hidden;
+	text-overflow: clip;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-statusbar-container .notebook-statusbar-item.notebook-statusbar-item-has-command {
+	cursor: pointer;
+}
+
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-statusbar-container .notebook-statusbar-item-show-when-active {
+	display: none;
+}

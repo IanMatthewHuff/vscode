@@ -1160,7 +1160,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension, 'notebookCellExecutionState');
 				return extHostNotebookKernels.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
-			}
+			},
+			registerNotebookStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookStatusBarItemProvider) => {
+				return extHostNotebook.registerNotebookStatusBarItemProvider(extension, notebookType, provider);
+			},
 		};
 
 		return <typeof vscode>{
@@ -1326,6 +1329,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
+			NotebookStatusBarItem: extHostTypes.NotebookStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookEdit: extHostTypes.NotebookEdit,
 			PortAttributes: extHostTypes.PortAttributes,
